@@ -23,9 +23,18 @@ func NewAnimate(
 	maxFrames int,
 	beginX int,
 	beginY int,
-	
+	offsetX int,
+	offsetY int,
 ) *Animate {
-
+	return &Animate{
+		frames:    0,
+		img:       img,
+		maxFrames: maxFrames,
+		beginX:    beginX,
+		beginY:    beginY,
+		offsetX:   offsetX,
+		offsetY:   offsetY,
+	}
 }
 
 // TODO: Add geom data somehow. Maybe calculate in Update?? Or comes from other obj

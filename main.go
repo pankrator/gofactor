@@ -1,6 +1,7 @@
 package main
 
 import (
+	"gogame/anim"
 	"gogame/game"
 	"image"
 	"image/color"
@@ -19,6 +20,8 @@ type Game struct {
 	objects []*game.Object
 
 	moveable *game.Moveable
+
+	animateable anim.Animate
 }
 
 func (g *Game) Init() {
@@ -42,6 +45,8 @@ func (g *Game) Init() {
 	moveableGeom.Translate(100, 100)
 
 	g.moveable = game.NewMoveable(game.NewObject(moveableGeom))
+
+	g.animateable = new
 }
 
 func (g *Game) Update() error {
