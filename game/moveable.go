@@ -1,11 +1,14 @@
 package game
 
-import "github.com/hajimehoshi/ebiten/v2"
+import (
+	"github.com/hajimehoshi/ebiten/v2"
+)
 
 type Moveable struct {
 	obj *Object
 }
 
+// TODO: Set the geometry that needs moving and embed this into other structs that need moving
 func NewMoveable(obj *Object) *Moveable {
 	return &Moveable{
 		obj: obj,
