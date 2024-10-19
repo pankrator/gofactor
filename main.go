@@ -20,13 +20,17 @@ import (
 var fontFace = text.NewGoXFace(bitmapfont.Face)
 
 type Game struct {
+	width  int
+	height int
+
 	keys        []ebiten.Key
 	leftPressed bool
 
 	fillerImg *ebiten.Image
 	beltImg   *ebiten.Image
 
-	objects []*game.Object
+	objects  []*game.Belt
+	beltGrid [][]*game.Belt
 
 	moveable   *game.Moveable
 	animetable *anim.Animate
@@ -38,6 +42,11 @@ type Game struct {
 }
 
 func (g *Game) Init() {
+	g.beltGrid = make([][]*game.Belt, 3000/64)
+	for i := 0; i < 3000/64; i++ {
+		g.beltGrid[i] = make([]*game.Belt, 3000/64)
+	}
+
 	testImg := ebiten.NewImage(2, 2)
 	testImg.Set(0, 0, color.RGBA{
 		R: 255,
@@ -53,11 +62,19 @@ func (g *Game) Init() {
 
 	g.fillerImg = testImg
 
-	moveableGeom := ebiten.GeoM{}
-	moveableGeom.Scale(32, 32)
-	moveableGeom.Translate(100, 100)
+	moveableTransform := game.Transform{
+		X:      100,
+		Y:      100,
+		ScaleX: 32,
+		ScaleY: 32,
+	}
 
-	g.moveable = game.NewMoveable(game.NewObject(moveableGeom))
+	g.moveable = game.NewMoveable(
+		game.NewObject(
+			moveableTransform,
+			game.WithImage(g.fillerImg.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image)),
+		),
+	)
 
 	f, err := os.Open("resources/belts2.png")
 	if err != nil {
@@ -75,7 +92,7 @@ func (g *Game) Init() {
 	g.animetable = anim.NewAnimate(g.beltImg, 3, 0, 0, 845, 460)
 
 	g.ghost = game.NewObject(
-		ebiten.GeoM{},
+		game.Transform{},
 		game.WithImage(g.beltImg.SubImage(image.Rect(0, 0, 845, 460)).(*ebiten.Image)),
 	)
 }
@@ -89,29 +106,83 @@ func (g *Game) Update() error {
 	g.mouseY = y
 
 	if g.leftPressed {
-		geom := ebiten.GeoM{}
-		geom.Scale(32, 32)
-		geom.Translate(float64(g.mouseX), float64(g.mouseY))
+		g.handleLeftClick()
+	}
 
-		game.NewObject(
-			geom,
-			game.WithAnimateable(anim.NewAnimate(g.beltImg, 3, 0, 0, 845, 460)),
-		)
-		g.objects = append(g.objects, game.NewObject(geom))
+	for _, o := range g.objects {
+		o.Update()
 	}
 
 	g.moveable.Update()
 	g.animetable.Update()
 
 	if g.ghost != nil {
-		g.ghost.(*game.Object).Geom.Reset()
-		g.ghost.(*game.Object).Geom.Scale(util.SizeTo(g.ghost.(*game.Object).Img.Bounds().Size(), image.Pt(64, 64)))
 		boxX := g.mouseX / 64
 		boxY := g.mouseY / 64
-		g.ghost.(*game.Object).Geom.Translate(float64(boxX*64), float64(boxY*64))
+		scaleX, scaleY := util.SizeTo(g.ghost.(*game.Object).Img.Bounds().Size(), image.Pt(64, 64))
+		g.ghost.(*game.Object).Transform.ScaleX = scaleX
+		g.ghost.(*game.Object).Transform.ScaleY = scaleY
+		g.ghost.(*game.Object).Transform.X = float64(boxX * 64)
+		g.ghost.(*game.Object).Transform.Y = float64(boxY * 64)
 	}
 
 	return nil
+}
+
+func (g *Game) placeItem() {
+	if ebiten.IsKeyPressed(ebiten.KeyG) {
+		boxX := g.mouseX / 64
+		boxY := g.mouseY / 64
+
+		belt := g.beltGrid[boxX][boxY]
+		if belt != nil {
+			return
+		}
+
+		item := game.NewObject(
+			game.Transform{},
+			game.WithImage(g.fillerImg.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image)),
+		)
+
+		belt.AddItem(&game.Item{
+			Transform: &item.Transform,
+		})
+	}
+}
+
+func (g *Game) handleLeftClick() {
+	boxX := g.mouseX / 64
+	boxY := g.mouseY / 64
+
+	if obj := g.beltGrid[boxX][boxY]; obj != nil {
+		return
+	}
+
+	scaleX, scaleY := util.SizeTo(image.Pt(845, 460), image.Pt(64, 64))
+	tr := game.Transform{
+		X:      float64(boxX * 64),
+		Y:      float64(boxY * 64),
+		ScaleX: scaleX,
+		ScaleY: scaleY,
+	}
+
+	belt := game.NewBelt(anim.NewAnimate(g.beltImg, 3, 0, 0, 845, 460), tr)
+
+	g.beltGrid[boxX][boxY] = belt
+	g.objects = append(g.objects, belt)
+
+	if boxX-1 >= 0 {
+		left := g.beltGrid[boxX-1][boxY]
+		if left != nil {
+			left.ConnectAfter(belt)
+		}
+	}
+	if boxX+1 < len(g.beltGrid) {
+		left := g.beltGrid[boxX-1][boxY]
+		if left != nil {
+			belt.ConnectAfter(belt)
+		}
+	}
 }
 
 func (g *Game) handleInput() {
@@ -120,44 +191,47 @@ func (g *Game) handleInput() {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	textOp := &text.DrawOptions{}
-	textOp.GeoM.Scale(5, 5)
+	textOp.GeoM.Scale(3, 3)
 	textOp.LineSpacing = fontFace.Metrics().HLineGap + fontFace.Metrics().HAscent + fontFace.Metrics().HDescent
 
-	text.Draw(screen, fmt.Sprintf("%d %d", g.mouseX/64, g.mouseY/64), fontFace, textOp)
+	text.Draw(screen, fmt.Sprintf("%d %d - %d", g.mouseX/64, g.mouseY/64, ebiten.TPS()), fontFace, textOp)
 
-	// geom := ebiten.GeoM{}
-	// geom.Scale(64, 64)
-	// geom.Translate(32, 32)
+	geom := ebiten.GeoM{}
 
-	g.animetable.Draw(screen)
+	geom.Scale(util.SizeTo(image.Pt(845, 460), image.Pt(64, 64)))
+	geom.Translate(130, 60)
+
+	g.animetable.Draw(screen, &ebiten.DrawImageOptions{
+		GeoM: geom,
+	})
 
 	for _, o := range g.objects {
-		screen.DrawImage(g.fillerImg.SubImage(image.Rect(0, 0, 1, 1)).(*ebiten.Image),
-			&ebiten.DrawImageOptions{
-				GeoM:  o.Geom,
-				Blend: ebiten.BlendCopy,
-			})
+		o.Draw(screen, &ebiten.DrawImageOptions{})
 	}
 
-	screen.DrawImage(g.fillerImg.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image), &ebiten.DrawImageOptions{
-		GeoM:  g.moveable.GetObject().Geom,
-		Blend: ebiten.BlendCopy,
-	})
+	g.moveable.Draw(screen)
+	// screen.DrawImage(g.fillerImg.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image), &ebiten.DrawImageOptions{
+	// 	GeoM:  g.moveable.GetObject().Geom,
+	// 	Blend: ebiten.BlendCopy,
+	// })
 
 	if g.ghost != nil {
 		colorScale := &ebiten.ColorScale{}
 		colorScale.ScaleAlpha(0.4)
-		g.ghost.(*game.Object).Draw(screen, colorScale)
+		g.ghost.(*game.Object).Draw(screen, colorScale, nil)
 	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return 1024, 768
+	// return width, height
+	g.width = outsideWidth
+	g.height = outsideHeight
+	return outsideWidth, outsideHeight
 }
 
 func main() {
-	ebiten.SetWindowSize(640, 480)
-	ebiten.SetFullscreen(false)
+	// ebiten.SetWindowSize(2300, 1400)
+	ebiten.SetFullscreen(true)
 	ebiten.SetWindowTitle("Hello, World!")
 	ebiten.SetVsyncEnabled(true)
 

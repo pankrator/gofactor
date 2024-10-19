@@ -3,7 +3,7 @@ package game
 import "github.com/hajimehoshi/ebiten/v2"
 
 type Drawable interface {
-	Draw(screen *ebiten.Image, opts ebiten.DrawImageOptions)
+	Draw(screen *ebiten.Image, opts *ebiten.DrawImageOptions)
 }
 
 type Animateable interface {
@@ -12,7 +12,7 @@ type Animateable interface {
 }
 
 type Object struct {
-	Geom        ebiten.GeoM
+	Transform   Transform
 	Img         *ebiten.Image
 	animateable Animateable
 }
@@ -31,9 +31,9 @@ func WithAnimateable(drawable Animateable) ObjOption {
 	}
 }
 
-func NewObject(geom ebiten.GeoM, opts ...ObjOption) *Object {
+func NewObject(transform Transform, opts ...ObjOption) *Object {
 	obj := &Object{
-		Geom: geom,
+		Transform: transform,
 	}
 
 	for _, opt := range opts {
@@ -49,17 +49,21 @@ func (o Object) Update() {
 	}
 }
 
-func (o *Object) Draw(screen *ebiten.Image, colorScale *ebiten.ColorScale) {
+func (o *Object) Draw(screen *ebiten.Image, colorScale *ebiten.ColorScale, blend *ebiten.Blend) {
 	if o.Img != nil {
-		screen.DrawImage(o.Img, &ebiten.DrawImageOptions{
-			GeoM:       o.Geom,
+		opts := &ebiten.DrawImageOptions{
+			GeoM:       o.Transform.ToGeom(),
 			ColorScale: *colorScale,
-		})
+		}
+		if blend != nil {
+			opts.Blend = *blend
+		}
+		screen.DrawImage(o.Img, opts)
 	}
 
 	if o.animateable != nil {
-		o.animateable.Draw(screen, ebiten.DrawImageOptions{
-			GeoM: o.Geom,
+		o.animateable.Draw(screen, &ebiten.DrawImageOptions{
+			GeoM: o.Transform.ToGeom(),
 		})
 	}
 }

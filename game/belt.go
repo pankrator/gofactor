@@ -7,12 +7,13 @@ import (
 )
 
 type Item struct {
-	geom *ebiten.GeoM
+	Transform *Transform
+	init      bool
 }
 
 type Belt struct {
-	animate *anim.Animate
-	geom    *ebiten.GeoM
+	transform Transform
+	animate   *anim.Animate
 
 	prev *Belt
 	next *Belt
@@ -20,21 +21,38 @@ type Belt struct {
 	items []*Item
 }
 
-func NewBelt(animate *anim.Animate, geom *ebiten.GeoM) *Belt {
+func NewBelt(animate *anim.Animate, transform Transform) *Belt {
 	return &Belt{
-		animate: animate,
-		geom:    geom,
+		animate:   animate,
+		transform: transform,
 	}
 }
 
-func (b *Belt) Draw(screen *ebiten.Image) {
-	b.animate.Draw(screen)
+func (b *Belt) Draw(screen *ebiten.Image, opts *ebiten.DrawImageOptions) {
+	geom := ebiten.GeoM{}
+	geom.Scale(b.transform.ScaleX, b.transform.ScaleY)
+	geom.Translate(b.transform.X, b.transform.Y)
+
+	b.animate.Draw(screen, &ebiten.DrawImageOptions{
+		GeoM: geom,
+	})
 }
 
 func (b *Belt) Update() {
 	b.animate.Update()
 
-	// TODO: Update items to move them along the belt
+	for _, item := range b.items {
+		if !item.init {
+			item.Transform.X = b.transform.X
+			item.Transform.Y = b.transform.Y
+			item.init = true
+		}
+
+		item.Transform.X += 0.1
+		if item.Transform.X >= b.transform.X+b.transform.ScaleX {
+			item.Transform.X = b.transform.X + b.transform.ScaleX
+		}
+	}
 }
 
 func (b *Belt) ConnectBefore(belt *Belt) {

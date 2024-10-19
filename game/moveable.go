@@ -17,20 +17,24 @@ func NewMoveable(obj *Object) *Moveable {
 
 func (m *Moveable) Update() {
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		m.obj.Geom.Translate(-2, 0)
+		m.obj.Transform.X -= 2
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		m.obj.Geom.Translate(2, 0)
+		m.obj.Transform.X += 2
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		m.obj.Geom.Translate(0, -2)
+		m.obj.Transform.Y -= 2
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		m.obj.Geom.Translate(0, 2)
+		m.obj.Transform.Y += 2
 	}
+}
+
+func (m *Moveable) Draw(screen *ebiten.Image) {
+	m.obj.Draw(screen, &ebiten.ColorScale{}, &ebiten.BlendCopy)
 }
 
 func (m *Moveable) GetObject() *Object {
