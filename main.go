@@ -29,6 +29,7 @@ type Game struct {
 	fillerImg *ebiten.Image
 	beltImg   *ebiten.Image
 
+	items    []*game.Object
 	objects  []*game.Belt
 	beltGrid [][]*game.Belt
 
@@ -69,9 +70,19 @@ func (g *Game) Init() {
 		ScaleY: 32,
 	}
 
+	// g.items = append(g.items, game.NewObject(
+	// 	&game.Transform{
+	// 		X:      100,
+	// 		Y:      100,
+	// 		ScaleX: 100,
+	// 		ScaleY: 100,
+	// 	},
+	// 	game.WithImage(g.fillerImg.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image)),
+	// ))
+
 	g.moveable = game.NewMoveable(
 		game.NewObject(
-			moveableTransform,
+			&moveableTransform,
 			game.WithImage(g.fillerImg.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image)),
 		),
 	)
@@ -92,13 +103,15 @@ func (g *Game) Init() {
 	g.animetable = anim.NewAnimate(g.beltImg, 3, 0, 0, 845, 460)
 
 	g.ghost = game.NewObject(
-		game.Transform{},
+		&game.Transform{},
 		game.WithImage(g.beltImg.SubImage(image.Rect(0, 0, 845, 460)).(*ebiten.Image)),
 	)
 }
 
 func (g *Game) Update() error {
 	g.handleInput()
+	g.placeItem()
+
 	g.keys = inpututil.AppendPressedKeys(g.keys[:0])
 
 	x, y := ebiten.CursorPosition()
@@ -135,17 +148,22 @@ func (g *Game) placeItem() {
 		boxY := g.mouseY / 64
 
 		belt := g.beltGrid[boxX][boxY]
-		if belt != nil {
+		if belt == nil {
 			return
 		}
 
 		item := game.NewObject(
-			game.Transform{},
+			&game.Transform{
+				ScaleX: 32,
+				ScaleY: 32,
+			},
 			game.WithImage(g.fillerImg.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image)),
 		)
 
+		g.items = append(g.items, item)
+
 		belt.AddItem(&game.Item{
-			Transform: &item.Transform,
+			Transform: item.Transform,
 		})
 	}
 }
@@ -158,12 +176,11 @@ func (g *Game) handleLeftClick() {
 		return
 	}
 
-	scaleX, scaleY := util.SizeTo(image.Pt(845, 460), image.Pt(64, 64))
 	tr := game.Transform{
 		X:      float64(boxX * 64),
 		Y:      float64(boxY * 64),
-		ScaleX: scaleX,
-		ScaleY: scaleY,
+		ScaleX: 64,
+		ScaleY: 64,
 	}
 
 	belt := game.NewBelt(anim.NewAnimate(g.beltImg, 3, 0, 0, 845, 460), tr)
@@ -175,12 +192,14 @@ func (g *Game) handleLeftClick() {
 		left := g.beltGrid[boxX-1][boxY]
 		if left != nil {
 			left.ConnectAfter(belt)
+			belt.ConnectBefore(left)
 		}
 	}
 	if boxX+1 < len(g.beltGrid) {
-		left := g.beltGrid[boxX-1][boxY]
-		if left != nil {
-			belt.ConnectAfter(belt)
+		right := g.beltGrid[boxX+1][boxY]
+		if right != nil {
+			belt.ConnectAfter(right)
+			right.ConnectBefore(belt)
 		}
 	}
 }
@@ -209,6 +228,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		o.Draw(screen, &ebiten.DrawImageOptions{})
 	}
 
+	for _, item := range g.items {
+		item.Draw(screen, nil, nil)
+	}
+
 	g.moveable.Draw(screen)
 	// screen.DrawImage(g.fillerImg.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image), &ebiten.DrawImageOptions{
 	// 	GeoM:  g.moveable.GetObject().Geom,
@@ -231,7 +254,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 
 func main() {
 	// ebiten.SetWindowSize(2300, 1400)
-	ebiten.SetFullscreen(true)
+	// ebiten.SetFullscreen(true)
 	ebiten.SetWindowTitle("Hello, World!")
 	ebiten.SetVsyncEnabled(true)
 

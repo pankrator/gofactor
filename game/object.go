@@ -12,7 +12,7 @@ type Animateable interface {
 }
 
 type Object struct {
-	Transform   Transform
+	Transform   *Transform
 	Img         *ebiten.Image
 	animateable Animateable
 }
@@ -31,7 +31,7 @@ func WithAnimateable(drawable Animateable) ObjOption {
 	}
 }
 
-func NewObject(transform Transform, opts ...ObjOption) *Object {
+func NewObject(transform *Transform, opts ...ObjOption) *Object {
 	obj := &Object{
 		Transform: transform,
 	}
@@ -52,8 +52,11 @@ func (o Object) Update() {
 func (o *Object) Draw(screen *ebiten.Image, colorScale *ebiten.ColorScale, blend *ebiten.Blend) {
 	if o.Img != nil {
 		opts := &ebiten.DrawImageOptions{
-			GeoM:       o.Transform.ToGeom(),
-			ColorScale: *colorScale,
+			GeoM: o.Transform.ToGeom(),
+		}
+
+		if colorScale != nil {
+			opts.ColorScale = *colorScale
 		}
 		if blend != nil {
 			opts.Blend = *blend

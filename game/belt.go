@@ -2,6 +2,8 @@ package game
 
 import (
 	"gogame/anim"
+	"gogame/util"
+	"image"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -30,27 +32,40 @@ func NewBelt(animate *anim.Animate, transform Transform) *Belt {
 
 func (b *Belt) Draw(screen *ebiten.Image, opts *ebiten.DrawImageOptions) {
 	geom := ebiten.GeoM{}
-	geom.Scale(b.transform.ScaleX, b.transform.ScaleY)
+	scaleX, scaleY := util.SizeTo(image.Pt(845, 460), image.Pt(int(b.transform.ScaleX), int(b.transform.ScaleY)))
+	geom.Scale(scaleX, scaleY)
 	geom.Translate(b.transform.X, b.transform.Y)
 
-	b.animate.Draw(screen, &ebiten.DrawImageOptions{
+	opts = &ebiten.DrawImageOptions{
 		GeoM: geom,
-	})
+	}
+
+	if b.next != nil || b.prev != nil {
+		opts.ColorScale.SetB(0.1)
+	}
+
+	b.animate.Draw(screen, opts)
 }
 
 func (b *Belt) Update() {
 	b.animate.Update()
 
-	for _, item := range b.items {
+	for i := len(b.items) - 1; i >= 0; i-- {
+		item := b.items[i]
+
 		if !item.init {
 			item.Transform.X = b.transform.X
 			item.Transform.Y = b.transform.Y
 			item.init = true
 		}
 
-		item.Transform.X += 0.1
-		if item.Transform.X >= b.transform.X+b.transform.ScaleX {
-			item.Transform.X = b.transform.X + b.transform.ScaleX
+		item.Transform.X += 0.3
+		if item.Transform.X+item.Transform.ScaleX >= b.transform.X+b.transform.ScaleX {
+			item.Transform.X = b.transform.X + b.transform.ScaleX - item.Transform.ScaleX
+			if b.next != nil {
+				b.next.AddItem(item)
+				b.items = append(b.items[:i], b.items[i+1:]...)
+			}
 		}
 	}
 }
