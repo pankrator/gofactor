@@ -20,21 +20,26 @@ type Belt struct {
 	prev *Belt
 	next *Belt
 
-	items []*Item
+	items  []*Item
+	camera *TestCamera
 }
 
-func NewBelt(animate *anim.Animate, transform Transform) *Belt {
+func NewBelt(animate *anim.Animate, transform Transform, camera *TestCamera) *Belt {
 	return &Belt{
 		animate:   animate,
 		transform: transform,
+		camera:    camera,
 	}
 }
 
 func (b *Belt) Draw(screen *ebiten.Image, opts *ebiten.DrawImageOptions) {
-	geom := ebiten.GeoM{}
 	scaleX, scaleY := util.SizeTo(image.Pt(845, 460), image.Pt(int(b.transform.ScaleX), int(b.transform.ScaleY)))
-	geom.Scale(scaleX, scaleY)
-	geom.Translate(b.transform.X, b.transform.Y)
+
+	tempTransform := b.transform
+	tempTransform.ScaleX = scaleX
+	tempTransform.ScaleY = scaleY
+
+	geom := tempTransform.ToGeom(b.camera)
 
 	opts = &ebiten.DrawImageOptions{
 		GeoM: geom,
@@ -59,7 +64,7 @@ func (b *Belt) Update() {
 			item.init = true
 		}
 
-		item.Transform.X += 0.3
+		item.Transform.X += 0.5
 		if item.Transform.X+item.Transform.ScaleX >= b.transform.X+b.transform.ScaleX {
 			item.Transform.X = b.transform.X + b.transform.ScaleX - item.Transform.ScaleX
 			if b.next != nil {
